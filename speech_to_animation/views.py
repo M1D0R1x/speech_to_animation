@@ -1,22 +1,17 @@
+import json
+import logging
+import nltk
+from django.conf import settings
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.staticfiles import finders
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from django.contrib.auth import login, logout
-from django.contrib.auth.models import User  # Import User model
-from django.contrib.auth import authenticate
-import nltk
-import string 
-from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
 from nltk.corpus import wordnet
-from django.contrib.staticfiles import finders
-from django.contrib.auth.decorators import login_required
-import logging
-import json
-import os
-from django.conf import settings
-
+from nltk.stem import WordNetLemmatizer
+from nltk.tokenize import word_tokenize
 
 try:
     with open(settings.SYNONYM_PATH, 'r', encoding='utf-8') as f:
@@ -86,32 +81,37 @@ def animation_view(request):
                 "present_continuous": len([word for word in tagged if word[1] == "VBG"]),
             }
 
+            probable_tense = max(tense, key=tense.get)
             logger.info(f"Tense Analysis: {tense}")
 
+            #  Filter and lemmatize words
+            important_words = {"i", "he", "she", "they", "we", "what", "where", "how", "you", "your", "my", "name", "hear", "book", "sign", "me", "yes", "no","not"}
             stop_words = set(stopwords.words('english'))
+            isl_replacements = {"i": "me"}
             lr = WordNetLemmatizer()
 
-            filtered_text = []
-            for w, p in zip(words, tagged):
-                if w not in stop_words:
-                    if p[1] in ['VBG', 'VBD', 'VBZ', 'VBN', 'NN']:
-                        filtered_text.append(lr.lemmatize(w, pos='v'))
-                    elif p[1] in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
-                        filtered_text.append(lr.lemmatize(w, pos='a'))
+            filtered_words = []
+            for word, tag in tagged:
+                if word not in stop_words:
+                    word = isl_replacements.get(word, word)
+                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN', 'NN']:
+                        filtered_words.append(lr.lemmatize(word, pos='v'))
+                    elif tag in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
+                        filtered_words.append(lr.lemmatize(word, pos='a'))
                     else:
-                        filtered_text.append(lr.lemmatize(w))
+                        filtered_words.append(lr.lemmatize(word))
 
-            words = filtered_text
-            probable_tense = max(tense, key=tense.get)
-            logger.info(f"Chosen Tense: {probable_tense}")
-
+            #  Insert tense words AFTER filtering
             if probable_tense == "past" and tense["past"] > 0:
-                words.insert(0, "Before")
+                filtered_words.insert(0, "Before")
             elif probable_tense == "future" and tense["future"] > 0:
-                words.insert(0, "Will")
+                filtered_words.insert(0, "Will")
             elif probable_tense == "present_continuous" and tense["present_continuous"] > 0:
-                words.insert(0, "Now")
+                filtered_words.insert(0, "Now")
+            logger.info(f"Final Processed Words: {filtered_words}")
+            words = filtered_words  # Ensure final processing uses updated list
 
+            #  Process words for animations
             synonym_mapping = {}
             processed_words = []
 
@@ -142,6 +142,7 @@ def animation_view(request):
         except ValueError as ve:
             logger.error(f"ValueError: {ve}")
             return render(request, 'animation.html', {'error': str(ve)})
+
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return render(request, 'animation.html', {'error': "An unexpected error occurred while processing the text."})

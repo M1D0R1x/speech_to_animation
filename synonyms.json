@@ -37,6 +37,9 @@
 
     "greetings": "hello",
     "hi": "hello",
+    "hii": "hello",
+    "hiii": "hello",
+    "hiiii": "hello",
 
     "hey": "hi",
     "hai": "hi",
@@ -78,5 +81,7 @@
     "greet": "welcome",
     "receive": "welcome",
 
-    "yourself": "you"
+    "yourself": "you",
+    "thyself": "you",
+    "thou": "you"
 }
