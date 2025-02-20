@@ -73,7 +73,7 @@ def animation_view(request):
             words = word_tokenize(text)
             tagged = nltk.pos_tag(words)
 
-            #  Detect tense BEFORE filtering
+            # Detect tense BEFORE filtering
             tense = {
                 "future": len([word for word in tagged if word[1] == "MD"]),
                 "present": len([word for word in tagged if word[1] in ["VBP", "VBZ", "VBG"]]),
@@ -84,8 +84,8 @@ def animation_view(request):
             probable_tense = max(tense, key=tense.get)
             logger.info(f"Chosen Tense: {probable_tense}")
 
-            #  Filter and lemmatize words
-            important_words = {"i", "he", "she", "they", "we", "what", "where", "how", "you", "your", "my", "name", "hear", "book", "sign", "me", "yes", "no","not"}
+            # Filter and lemmatize words
+            important_words = {"i", "he", "she", "they", "we", "what", "where", "how", "you", "your", "my", "name", "hear", "book", "sign", "me", "yes", "no", "not", "now", "before", "will"}
             stop_words = set(stopwords.words('english')) - important_words
             isl_replacements = {"i": "me"}
             lr = WordNetLemmatizer()
@@ -93,26 +93,37 @@ def animation_view(request):
             filtered_words = []
             for word, tag in tagged:
                 if word not in stop_words:
+                    # Apply replacements first
                     word = isl_replacements.get(word, word)
-                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN', 'NN']:
-                        filtered_words.append(lr.lemmatize(word, pos='v'))
+                    # Lemmatize based on POS tag
+                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN']:
+                        # Special handling for "ing" verbs
+                        if word.endswith("ing"):
+                            word = lr.lemmatize(word, pos='v')  # Reduces "coming" to "come"
+                        else:
+                            word = lr.lemmatize(word, pos='v')
+                    elif tag in ['NN']:
+                        word = lr.lemmatize(word, pos='n')
                     elif tag in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
-                        filtered_words.append(lr.lemmatize(word, pos='a'))
+                        word = lr.lemmatize(word, pos='a')
                     else:
-                        filtered_words.append(lr.lemmatize(word))
+                        word = lr.lemmatize(word)
+                    filtered_words.append(word)
 
-            #  Insert tense words AFTER filtering
+            # Insert tense words AFTER filtering
             if probable_tense == "past" and tense["past"] > 0:
-                filtered_words.insert(0, "Before")
+                if "before" not in [w.lower() for w in filtered_words]:  # Case-insensitive check
+                    filtered_words.insert(0, "Before")
             elif probable_tense == "future" and tense["future"] > 0:
-                filtered_words.insert(0, "Will")
+                if "will" not in [w.lower() for w in filtered_words]:  # Case-insensitive check
+                    filtered_words.insert(0, "Will")
             elif probable_tense == "present_continuous" and tense["present_continuous"] > 0:
                 filtered_words.insert(0, "Now")
+
             logger.info(f"Final Processed Words: {filtered_words}")
-            words = filtered_words  # Ensure final processing uses updated list
+            words = filtered_words  # Update words for further processing
 
-
-            #  Process words for animations
+            # Process words for animations
             synonym_mapping = {}
             processed_words = []
             for w in words:
