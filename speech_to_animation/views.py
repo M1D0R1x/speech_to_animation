@@ -73,7 +73,7 @@ def animation_view(request):
             words = word_tokenize(text)
             tagged = nltk.pos_tag(words)
 
-            # Identifying tense
+            #  Detect tense BEFORE filtering
             tense = {
                 "future": len([word for word in tagged if word[1] == "MD"]),
                 "present": len([word for word in tagged if word[1] in ["VBP", "VBZ", "VBG"]]),
@@ -82,11 +82,11 @@ def animation_view(request):
             }
 
             probable_tense = max(tense, key=tense.get)
-            logger.info(f"Tense Analysis: {tense}")
+            logger.info(f"Chosen Tense: {probable_tense}")
 
             #  Filter and lemmatize words
             important_words = {"i", "he", "she", "they", "we", "what", "where", "how", "you", "your", "my", "name", "hear", "book", "sign", "me", "yes", "no","not"}
-            stop_words = set(stopwords.words('english'))
+            stop_words = set(stopwords.words('english')) - important_words
             isl_replacements = {"i": "me"}
             lr = WordNetLemmatizer()
 
@@ -111,15 +111,15 @@ def animation_view(request):
             logger.info(f"Final Processed Words: {filtered_words}")
             words = filtered_words  # Ensure final processing uses updated list
 
+
             #  Process words for animations
             synonym_mapping = {}
             processed_words = []
-
             for w in words:
                 path = w + ".mp4"
                 animation_path = finders.find(path)
-                
-                if animation_path:  # Animation exists
+
+                if animation_path:
                     processed_words.append(w)
                 else:
                     synonym = find_synonym(w)
@@ -134,8 +134,8 @@ def animation_view(request):
             logger.info(f"Processed Words: {processed_words}")
 
             return render(request, 'animation.html', {
-                'words': processed_words, 
-                'text': text, 
+                'words': processed_words,
+                'text': text,
                 'synonym_mapping': synonym_mapping
             })
 
@@ -211,4 +211,3 @@ def check_animation(request, word):
     path = word + ".mp4"
     file_exists = bool(finders.find(path))
     return JsonResponse({'word': word, 'exists': file_exists})
-    
