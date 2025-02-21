@@ -125,21 +125,21 @@ def animation_view(request):
                         word = lr.lemmatize(word)
                     filtered_words.append(word)
 
-            # Replace the tense insertion block in your function:
-            if probable_tense == "past" and "before" not in [w.lower() for w in filtered_words]:
-                filtered_words.insert(0, "before")
-            elif probable_tense == "future" and "will" not in [w.lower() for w in filtered_words]:
-                filtered_words.insert(0, "will")
-            elif probable_tense == "present_continuous" and "now" not in [w.lower() for w in filtered_words]:
-                if filtered_words and filtered_words[0] == "me":
-                    filtered_words.insert(1, "now")  # "me now eat"
-                else:
-                    filtered_words.insert(0, "now")
-            elif probable_tense == "present" and "now" not in [w.lower() for w in filtered_words]:
-                if filtered_words and filtered_words[0] == "me":
-                    filtered_words.insert(1, "now")  # "me now tired"
-                else:
-                    filtered_words.insert(0, "now")
+            # # Replace the tense insertion block in your function:
+            # if probable_tense == "past" and "before" not in [w.lower() for w in filtered_words]:
+            #     filtered_words.insert(0, "before")
+            # elif probable_tense == "future" and "will" not in [w.lower() for w in filtered_words]:
+            #     filtered_words.insert(0, "will")
+            # elif probable_tense == "present_continuous" and "now" not in [w.lower() for w in filtered_words]:
+            #     if filtered_words and filtered_words[0] == "me":
+            #         filtered_words.insert(1, "now")  # "me now eat"
+            #     else:
+            #         filtered_words.insert(0, "now")
+            # elif probable_tense == "present" and "now" not in [w.lower() for w in filtered_words]:
+            #     if filtered_words and filtered_words[0] == "me":
+            #         filtered_words.insert(1, "now")  # "me now tired"
+            #     else:
+            #         filtered_words.insert(0, "now")
 
             logger.info(f"Final Processed Words: {filtered_words}")
             words = filtered_words
