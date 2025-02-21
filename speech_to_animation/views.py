@@ -76,15 +76,33 @@ def animation_view(request):
             words = word_tokenize(text)
             tagged = nltk.pos_tag(words)
 
-            # Detect tense BEFORE filtering
+            # Improved tense detection
             tense = {
-                "future": len([word for word in tagged if word[1] == "MD"]),
-                "present": len([word for word in tagged if word[1] in ["VBP", "VBZ", "VBG"]]),
-                "past": len([word for word in tagged if word[1] in ["VBD", "VBN"]]),
-                "present_continuous": len([word for word in tagged if word[1] == "VBG"]),
+                "future": 0,
+                "present": 0,
+                "past": 0,
+                "present_continuous": 0,
             }
+            for word, tag in tagged:
+                if tag == "MD":
+                    tense["future"] += 1
+                elif tag in ["VBP", "VBZ"]:
+                    tense["present"] += 1
+                elif tag == "VBG":
+                    tense["present_continuous"] += 1
+                elif tag in ["VBD", "VBN"]:
+                    tense["past"] += 1
 
-            probable_tense = max(tense, key=tense.get)
+            # Prioritize tense
+            if tense["future"] > 0:
+                probable_tense = "future"
+            elif tense["present_continuous"] > 0 and tense["present"] > 0:
+                probable_tense = "present_continuous"
+            elif tense["past"] > 0:
+                probable_tense = "past"
+            else:
+                probable_tense = "present"
+
             logger.info(f"Chosen Tense: {probable_tense}")
 
             # Filter and lemmatize words
@@ -96,16 +114,10 @@ def animation_view(request):
             filtered_words = []
             for word, tag in tagged:
                 if word not in stop_words:
-                    # Apply replacements first
                     word = isl_replacements.get(word, word)
-                    # Lemmatize based on POS tag
-                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN']:
-                        # Special handling for "ing" verbs
-                        if word.endswith("ing"):
-                            word = lr.lemmatize(word, pos='v')  # Reduces "coming" to "come"
-                        else:
-                            word = lr.lemmatize(word, pos='v')
-                    elif tag in ['NN']:
+                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN']:  # Lemmatize all verbs, including VBG
+                        word = lr.lemmatize(word, pos='v')  # "eating" → "eat", "coming" → "come"
+                    elif tag == 'NN':
                         word = lr.lemmatize(word, pos='n')
                     elif tag in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
                         word = lr.lemmatize(word, pos='a')
@@ -113,18 +125,24 @@ def animation_view(request):
                         word = lr.lemmatize(word)
                     filtered_words.append(word)
 
-            # Insert tense words AFTER filtering
-            if probable_tense == "past" and tense["past"] > 0:
-                if "before" not in [w.lower() for w in filtered_words]:
-                    filtered_words.insert(0, "Before")
-            elif probable_tense == "future" and tense["future"] > 0:
-                if "will" not in [w.lower() for w in filtered_words]:
-                    filtered_words.insert(0, "Will")
-            elif probable_tense == "present_continuous" and tense["present_continuous"] > 0:
-                filtered_words.insert(0, "Now")
+            # Replace the tense insertion block in your function:
+            if probable_tense == "past" and "before" not in [w.lower() for w in filtered_words]:
+                filtered_words.insert(0, "before")
+            elif probable_tense == "future" and "will" not in [w.lower() for w in filtered_words]:
+                filtered_words.insert(0, "will")
+            elif probable_tense == "present_continuous" and "now" not in [w.lower() for w in filtered_words]:
+                if filtered_words and filtered_words[0] == "me":
+                    filtered_words.insert(1, "now")  # "me now eat"
+                else:
+                    filtered_words.insert(0, "now")
+            elif probable_tense == "present" and "now" not in [w.lower() for w in filtered_words]:
+                if filtered_words and filtered_words[0] == "me":
+                    filtered_words.insert(1, "now")  # "me now tired"
+                else:
+                    filtered_words.insert(0, "now")
 
             logger.info(f"Final Processed Words: {filtered_words}")
-            words = filtered_words  # Update words for further processing
+            words = filtered_words
 
             # Process words for animations
             synonym_mapping = {}
@@ -159,7 +177,7 @@ def animation_view(request):
 
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
-            return render(request, 'animation.html', {'error': "An unexpected error occurred while processing the text."})
+            return render(request, 'animation.html', {'error': "An unexpected error occurred."})
 
     return render(request, 'animation.html')
 
