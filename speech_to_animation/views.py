@@ -1,6 +1,7 @@
 import json
 import logging
 import nltk
+import re
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -69,6 +70,8 @@ def animation_view(request):
             if not text:
                 raise ValueError("No input text provided.")
 
+            # Clean special characters using regex
+            text = re.sub(r'[^a-zA-Z0-9\s]', '', text)
             text = text.lower()
             words = word_tokenize(text)
             tagged = nltk.pos_tag(words)
@@ -112,10 +115,10 @@ def animation_view(request):
 
             # Insert tense words AFTER filtering
             if probable_tense == "past" and tense["past"] > 0:
-                if "before" not in [w.lower() for w in filtered_words]:  # Case-insensitive check
+                if "before" not in [w.lower() for w in filtered_words]:
                     filtered_words.insert(0, "Before")
             elif probable_tense == "future" and tense["future"] > 0:
-                if "will" not in [w.lower() for w in filtered_words]:  # Case-insensitive check
+                if "will" not in [w.lower() for w in filtered_words]:
                     filtered_words.insert(0, "Will")
             elif probable_tense == "present_continuous" and tense["present_continuous"] > 0:
                 filtered_words.insert(0, "Now")
