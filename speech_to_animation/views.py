@@ -77,12 +77,7 @@ def animation_view(request):
             tagged = nltk.pos_tag(words)
 
             # Improved tense detection
-            tense = {
-                "future": 0,
-                "present": 0,
-                "past": 0,
-                "present_continuous": 0,
-            }
+            tense = {"future": 0, "present": 0, "past": 0, "present_continuous": 0}
             for word, tag in tagged:
                 if tag == "MD":
                     tense["future"] += 1
@@ -111,35 +106,42 @@ def animation_view(request):
             isl_replacements = {"i": "me"}
             lr = WordNetLemmatizer()
 
+            # Check for "thank you" first before processing individual words
+            original_text = " ".join(words)
             filtered_words = []
-            for word, tag in tagged:
-                if word not in stop_words:
-                    word = isl_replacements.get(word, word)
-                    if tag in ['VBG', 'VBD', 'VBZ', 'VBN']:  # Lemmatize all verbs, including VBG
-                        word = lr.lemmatize(word, pos='v')  # "eating" → "eat", "coming" → "come"
-                    elif tag == 'NN':
-                        word = lr.lemmatize(word, pos='n')
-                    elif tag in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
-                        word = lr.lemmatize(word, pos='a')
-                    else:
-                        word = lr.lemmatize(word)
-                    filtered_words.append(word)
+            has_action_verb = False
 
-            # Replace the tense insertion block in your function:
-            if probable_tense == "past" and "before" not in [w.lower() for w in filtered_words]:
-                filtered_words.insert(0, "before")
-            elif probable_tense == "future" and "will" not in [w.lower() for w in filtered_words]:
-                filtered_words.insert(0, "will")
-            elif probable_tense == "present_continuous" and "now" not in [w.lower() for w in filtered_words]:
-                if filtered_words and filtered_words[0] == "me":
-                    filtered_words.insert(1, "now")  # "me now eat"
-                else:
-                    filtered_words.insert(0, "now")
-            elif probable_tense == "present" and "now" not in [w.lower() for w in filtered_words]:
-                if filtered_words and filtered_words[0] == "me":
-                    filtered_words.insert(1, "now")  # "me now tired"
-                else:
-                    filtered_words.insert(0, "now")
+            if original_text == "thank you":
+                filtered_words = ["thank_you"]
+                probable_tense = None
+            else:
+                for word, tag in tagged:
+                    if word not in stop_words:
+                        word = isl_replacements.get(word, word)
+                        if tag in ['VBG', 'VBD', 'VBZ', 'VBN']:
+                            word = lr.lemmatize(word, pos='v')
+                            has_action_verb = True
+                        elif tag == 'NN':
+                            word = lr.lemmatize(word, pos='n')
+                        elif tag in ['JJ', 'JJR', 'JJS', 'RBR', 'RBS']:
+                            word = lr.lemmatize(word, pos='a')
+                        else:
+                            word = lr.lemmatize(word)
+                        filtered_words.append(word)
+
+                # Special case: Identity statements like "I am Veera"
+                if len(filtered_words) == 3 and filtered_words[0] == "me" and filtered_words[1] == "am" and tagged[2][1] == "NNP":
+                    filtered_words = ["me", filtered_words[2]]
+                    probable_tense = None
+
+                # Add tense markers only for actions
+                if probable_tense and has_action_verb:
+                    if probable_tense == "past" and "before" not in [w.lower() for w in filtered_words]:
+                        filtered_words.insert(0, "before")
+                    elif probable_tense == "future" and "will" not in [w.lower() for w in filtered_words]:
+                        filtered_words.insert(0, "will")
+                    elif probable_tense in ["present", "present_continuous"] and "now" not in [w.lower() for w in filtered_words]:
+                        filtered_words.insert(0, "now")
 
             logger.info(f"Final Processed Words: {filtered_words}")
             words = filtered_words
@@ -147,23 +149,31 @@ def animation_view(request):
             # Process words for animations
             synonym_mapping = {}
             processed_words = []
+            fixed_phrases = {"thank_you", "thank", "thanks", "you", "me"}  # Updated fixed phrases
             for w in words:
-                path = w + ".mp4"
-                animation_path = finders.find(path)
-
-                if animation_path:
-                    processed_words.append(w)
-                else:
-                    synonym = find_synonym(w)
-                    if synonym and finders.find(synonym + ".mp4"):
-                        processed_words.append(synonym)
-                        synonym_mapping[w] = synonym
-                        logger.info(f"Using synonym '{synonym}' for '{w}'")
+                if w in fixed_phrases:
+                    path = w + ".mp4"
+                    animation_path = finders.find(path)
+                    if animation_path:
+                        processed_words.append(w)
                     else:
-                        logger.warning(f"No animation found for '{w}', breaking into letters.")
-                        processed_words.extend(list(w))
-
-            logger.info(f"Processed Words: {processed_words}")
+                        logger.warning(f"No animation found for '{w}', skipping finger-spelling.")
+                        processed_words.append(w)
+                else:
+                    path = w + ".mp4"
+                    animation_path = finders.find(path)
+                    if animation_path:
+                        processed_words.append(w)
+                    else:
+                        synonym = find_synonym(w)
+                        if synonym and finders.find(synonym + ".mp4"):
+                            processed_words.append(synonym)
+                            synonym_mapping[w] = synonym
+                            logger.info(f"Using synonym '{synonym}' for '{w}'")
+                        else:
+                            logger.warning(f"No animation found for '{w}', breaking into letters.")
+                            processed_words.extend(list(w))
+                            logger.info(f"Processed Words: {processed_words}")
 
             return render(request, 'animation.html', {
                 'words': processed_words,
@@ -174,11 +184,9 @@ def animation_view(request):
         except ValueError as ve:
             logger.error(f"ValueError: {ve}")
             return render(request, 'animation.html', {'error': str(ve)})
-
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             return render(request, 'animation.html', {'error': "An unexpected error occurred."})
-
     return render(request, 'animation.html')
 
 
